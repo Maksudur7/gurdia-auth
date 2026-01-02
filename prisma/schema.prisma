@@ -13,24 +13,35 @@ datasource db {
   provider = "postgresql"
 }
 
-// Better-Auth Core Tables
+// 1. User Model (Updated with Task requirements)
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
+  id            String  @id @default(uuid())
+  email         String  @unique
   name          String?
-  emailVerified Boolean  @default(false)
+  emailVerified Boolean @default(false)
   image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  roleId    Int?
-  status    String @default("ACTIVE") // ACTIVE, SUSPENDED, BLOCKED
-  public_id String @unique @default(uuid())
+  password      String? // password field mandatory for bcrypt hashing
 
-  sessions Session[]
-  accounts Account[]
-  role     Role?     @relation(fields: [roleId], references: [id])
+  // Task Requirements: IDs
+  public_id   String @unique @default(uuid())
+  internal_id String @unique @default(nanoid()) // requirement: internal_id
+
+  // Task Requirements: Status & Recovery
+  status    String    @default("ACTIVE") // ACTIVE, SUSPENDED, BLOCKED, DORMANT
+  deletedAt DateTime? // For 60-day recovery logic
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roleId Int?
+  role   Role? @relation(fields: [roleId], references: [id])
+
+  sessions  Session[]
+  accounts  Account[]
+  auditLogs AuditLog[] // New: for security tracking
 }
 
+// 2. Session Model (For Better-Auth & One device logic)
 model Session {
   id        String   @id
   expiresAt DateTime
@@ -43,6 +54,42 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// 3. AuditLog Model (Requirement: Login logs, IP, Device, Geo)
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String // LOGIN, LOGOUT, DELETE_ATTEMPT
+  ip        String?
+  device    String?
+  geo       String? // Requirement: save geo-location
+  createdAt DateTime @default(now())
+}
+
+// 4. Role & Permission Models (RBAC)
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique // ADMIN, USER, SUB_ADMIN
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id     Int              @id @default(autoincrement())
+  action String           @unique // e.g., user.read, project.create
+  roles  RolePermission[]
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+// Better-Auth Specific Models
 model Account {
   id                    String    @id
   accountId             String
@@ -67,26 +114,4 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime?
   updatedAt  DateTime?
-}
-
-model Role {
-  id          Int              @id @default(autoincrement())
-  name        String           @unique // ADMIN, USER, SUB_ADMIN
-  users       User[]
-  permissions RolePermission[]
-}
-
-model Permission {
-  id     Int              @id @default(autoincrement())
-  action String           @unique // user.read, project.create
-  roles  RolePermission[]
-}
-
-model RolePermission {
-  roleId       Int
-  permissionId Int
-  role         Role       @relation(fields: [roleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
-
-  @@id([roleId, permissionId])
 }
