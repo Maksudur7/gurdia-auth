@@ -5,7 +5,7 @@ import { PrismaService } from 'src/lib/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createUser(createUserDto: CreateUserDto) {
     try {
@@ -15,12 +15,10 @@ export class UsersService {
           name: createUserDto.name,
           email: createUserDto.email,
           password: createUserDto.password,
-          image: createUserDto.image,
-        }
-      })
-
+          image: createUserDto.imageUrl,
+        },
+      });
       return newUser;
-
     } catch (error) {
       const err = error as Error;
       console.log(err.message);
