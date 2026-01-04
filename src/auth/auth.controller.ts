@@ -13,23 +13,28 @@ export class AuthController {
     return this.authService.regsterUser(createAuthDto);
   }
 
-  @Get()
+  @Post('login')
+  login(@Body() body: { email: string; password: string }) {
+    return this.authService.loginUser(body.email, body.password);
+  }
+
+  @Get('users')
   findAll() {
-    return this.authService.findAll();
+    return this.authService.findAllUsers();
   }
 
-  @Get(':id')
+  @Get('users/:id')
   findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
+    return this.authService.findOneUsers(id);
   }
 
-  @Patch(':id')
+  @Patch('users/:id')
   update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
+    return this.authService.updateOneUsers(id, updateAuthDto);
   }
 
-  @Delete(':id')
+  @Delete('users/:id')
   remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+    return this.authService.deletUser(id);
   }
 }

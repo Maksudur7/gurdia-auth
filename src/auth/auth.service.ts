@@ -19,19 +19,40 @@ export class AuthService {
     });
   }
 
-  findAll() {
-    return `This action returns all auth`;
+  async loginUser(email: string, password: string) {
+    return this.prisma.user.findFirst({
+      where: {
+        email,
+        password,
+      },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
+  async findAllUsers() {
+    return this.prisma.user.findMany();
   }
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
+  async findOneUsers(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+  async updateOneUsers(id: string, updateAuthDto: UpdateAuthDto) {
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        name: updateAuthDto.name,
+        email: updateAuthDto.email,
+        password: updateAuthDto.password,
+        image: updateAuthDto.imageUrl,
+      },
+    });
+  }
+
+  async deletUser(id: string) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
   }
 }
