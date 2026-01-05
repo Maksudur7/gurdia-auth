@@ -1,3 +1,4 @@
+import { JwtService } from '@nestjs/jwt';
 import { Injectable } from '@nestjs/common';
 import { CreateAuthDto } from './dto/create-auth.dto.js';
 import { UpdateAuthDto } from './dto/update-auth.dto.js';
@@ -6,8 +7,7 @@ import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) { }
-
+  constructor(private prisma: PrismaService, private jwtService: JwtService) { }
   async regsterUser(createAuthDto: CreateAuthDto) {
     const salt = bcrypt.genSaltSync(10);
     const hashPassword = bcrypt.hashSync(createAuthDto.password, salt);
@@ -19,8 +19,10 @@ export class AuthService {
         image: createAuthDto.imageUrl,
       },
     });
-    console.log(result);
-    return result;
+
+    const payload = { sub: result.id, email: result.email };
+    const token = await this.jwtService.signAsync(payload);
+    return { message: 'User created successfully', access_token: token, user: { id: result.id, email: result.email } };
   }
 
   async loginUser(email: string, pass: string) {
@@ -38,8 +40,9 @@ export class AuthService {
       throw new Error("Wrong password");
     }
 
-    console.log(user);
-    return user;
+    const payload = { sub: user.id, email: user.email };
+    const token = await this.jwtService.signAsync(payload);
+    return { message: "Login successful", access_token: token, user: { id: user.id, email: user.email } };
   }
 
   async findAllUsers() {
