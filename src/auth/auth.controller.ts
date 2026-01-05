@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { CreateAuthDto } from './dto/create-auth.dto.js';
 import { UpdateAuthDto } from './dto/update-auth.dto.js';
-
+import { PolicyGuard } from '../common/guards/policy.guard.js';
 
 @Controller('auth')
 export class AuthController {
@@ -19,16 +19,19 @@ export class AuthController {
   }
 
   @Get('users')
+  @UseGuards(PolicyGuard)
   findAll() {
     return this.authService.findAllUsers();
   }
 
   @Get('users/:id')
+  @UseGuards(PolicyGuard)
   findOne(@Param('id') id: string) {
     return this.authService.findOneUsers(id);
   }
 
   @Patch('users/:id')
+  @UseGuards(PolicyGuard)
   update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
     return this.authService.updateOneUsers(id, updateAuthDto);
   }
