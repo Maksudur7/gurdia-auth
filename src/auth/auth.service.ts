@@ -2,17 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { CreateAuthDto } from './dto/create-auth.dto.js';
 import { UpdateAuthDto } from './dto/update-auth.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async regsterUser(createAuthDto: CreateAuthDto) {
+    const salt = bcrypt.genSaltSync(10);
+    const hashPassword = bcrypt.hashSync(createAuthDto.password, salt);
     const result = await this.prisma.user.create({
       data: {
         name: createAuthDto.name,
         email: createAuthDto.email,
-        password: createAuthDto.password,
+        password: hashPassword,
         image: createAuthDto.imageUrl,
       },
     });
@@ -20,13 +23,23 @@ export class AuthService {
     return result;
   }
 
-  async loginUser(email: string, password: string) {
-    return this.prisma.user.findFirst({
-      where: {
-        email,
-        password,
-      },
+  async loginUser(email: string, pass: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
     });
+
+    if (!user) {
+      throw new Error("Unauthorized access");
+    }
+    const userPass = user.password;
+    const passMatch = await bcrypt.compareSync(pass, userPass as string);
+
+    if (!passMatch) {
+      throw new Error("Wrong password");
+    }
+
+    console.log(user);
+    return user;
   }
 
   async findAllUsers() {
