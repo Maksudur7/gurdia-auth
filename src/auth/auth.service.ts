@@ -5,11 +5,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) { }
-
+  constructor(private prisma: PrismaService) {}
 
   async regsterUser(createAuthDto: CreateAuthDto) {
-    return this.prisma.user.create({
+    const result = await this.prisma.user.create({
       data: {
         name: createAuthDto.name,
         email: createAuthDto.email,
@@ -17,6 +16,8 @@ export class AuthService {
         image: createAuthDto.imageUrl,
       },
     });
+    console.log(result);
+    return result;
   }
 
   async loginUser(email: string, password: string) {
