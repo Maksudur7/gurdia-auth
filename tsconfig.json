@@ -3,13 +3,15 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strictPropertyInitialization": false,
+    "exactOptionalPropertyTypes": false,
     "baseUrl": "./",
     "paths": {
       "src/*": [
         "src/*"
       ]
     },
-    "target": "ES2023",
+    "target": "ES2022",
+    "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
     "removeComments": true,
@@ -20,12 +22,16 @@
     "sourceMap": true,
     "incremental": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "noImplicitAny": false,
-    "strictNullChecks": true,
+    "strictNullChecks": false,
     "forceConsistentCasingInFileNames": true,
     "resolvePackageJsonExports": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "types": [
+      "node",
+      "jest"
+    ]
   },
   "include": [
     "src/**/*"

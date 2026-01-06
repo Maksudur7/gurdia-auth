@@ -1,3 +1,3 @@
-rules: {
-  '@typescript-eslint/no-unsafe-assignment': 'off',
-}
+// rules: {
+//   '@typescript-eslint/no-unsafe-assignment': 'off',
+// }

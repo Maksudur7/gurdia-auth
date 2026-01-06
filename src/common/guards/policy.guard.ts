@@ -5,7 +5,6 @@ import { PolicyEngine } from '../../auth/policies/policy.handler.js';
 
 @Injectable()
 export class PolicyGuard implements CanActivate {
-    constructor(private reflector: Reflector) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
@@ -21,7 +20,6 @@ export class PolicyGuard implements CanActivate {
         if (!isAllowed) {
             throw new ForbiddenException('Policy Violation: Access Denied due to account status or ownership.');
         }
-
         return true;
     }
 }
