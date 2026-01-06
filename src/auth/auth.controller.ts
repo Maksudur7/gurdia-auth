@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { CreateAuthDto } from './dto/create-auth.dto.js';
 import { UpdateAuthDto } from './dto/update-auth.dto.js';
 import { PolicyGuard } from '../common/guards/policy.guard.js';
+import { SessionGuard } from '../common/guards/session.guard.js';
 
 @Controller('auth')
 export class AuthController {
@@ -14,12 +15,17 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() body: { email: string; password: string }) {
-    return this.authService.loginUser(body.email, body.password);
+  login(@Body() body: { email: string; password: string }, @Req() request: { ip: string }) {
+    return this.authService.loginUser(body.email, body.password, request.ip);
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(@Body() body: { userId: string, otp: string }, @Req() request: { ip: string }) {
+    return this.authService.verifyOtpAndLogin(body.userId, body.otp, request.ip);
   }
 
   @Get('users')
-  @UseGuards(PolicyGuard)
+  @UseGuards(PolicyGuard, SessionGuard)
   findAll() {
     return this.authService.findAllUsers();
   }

@@ -11,7 +11,7 @@
       ]
     },
     "target": "ES2022",
-    "rootDir": "./src",
+    "rootDir": "./",
     "outDir": "./dist",
     "declaration": true,
     "removeComments": true,

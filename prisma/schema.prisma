@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated"
 }
 
 datasource db {
@@ -16,11 +16,12 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   roleId        Int?
-  status        String     @default("ACTIVE")
+  status        UserStatus @default(ACTIVE)
   public_id     String     @unique @default(uuid())
   deletedAt     DateTime?
   internal_id   String     @unique @default(nanoid())
   password      String?
+  lastLoginIp   String?
   accounts      Account[]
   auditLogs     AuditLog[]
   sessions      Session[]
@@ -96,4 +97,11 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime?
   updatedAt  DateTime?
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+  DORMANT
 }
