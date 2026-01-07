@@ -13,25 +13,26 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     @InjectRedis() private readonly redisClient: Redis,
-  ) {}
-  async regsterUser(createAuthDto: CreateAuthDto) {
-    const salt = bcrypt.genSaltSync(10);
-    const hashPassword = bcrypt.hashSync(createAuthDto.password, salt);
-    const result = await this.prisma.user.create({
+  ) { }
+  async createAuditLog(userId: string, action: string, ip: string, device?: string, geo?: string,) {
+    return await this.prisma.auditLog.create({
       data: {
-        name: createAuthDto.name,
-        email: createAuthDto.email,
-        password: hashPassword,
-        image: createAuthDto.imageUrl,
+        userId,
+        action,
+        ip,
+        device,
+        geo,
+      },
+      include: {
+        user: true,
       },
     });
-
-    const payload = { sub: result.id, email: result.email };
-    const token = await this.jwtService.signAsync(payload);
-    return { message: 'User created successfully', access_token: token, user: { id: result.id, email: result.email } };
   }
 
-  async validateUserStatusAndRecover(user) {
+  async validateUserStatusAndRecover(user: any) {
+    if (user.status === 'BLOCK') {
+      throw new Error("Your account is blocked. Please contact support.");
+    }
     if (user.deletedAt) {
       const now = new Date();
       const deletedDate = new Date(user.deletedAt);
@@ -57,6 +58,7 @@ export class AuthService {
     const savedOtp = await this.redisClient.get(`otp:${userId}`);
 
     if (!savedOtp || savedOtp !== otp) {
+      await this.createAuditLog(userId, 'OTP_VERIFICATION_FAILED', currentIp);
       throw new Error('Invalid or expired OTP');
     }
 
@@ -65,23 +67,89 @@ export class AuthService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { lastLoginIp: currentIp } as any,
+      include: { role: true },
     });
 
-    const payload = { sub: user.id, email: user.email, status: user.status };
+    const payload = { sub: user.id, email: user.email, status: user.status, role: user.role?.name };
     const token = await this.jwtService.signAsync(payload);
 
     await this.redisClient.set(`session:${user.id}`, token);
-
+    await this.createAuditLog(user.id, 'USER_LOGIN_SUCCESS_VIA_OTP', currentIp);
     return {
       message: "OTP Verified. Login successful",
       access_token: token,
-      user: { id: user.id, email: user.email }
+      user: { id: user.id, email: user.email, role: user.role?.name },
     };
+  }
+
+  async regsterUser(createAuthDto: CreateAuthDto, ip: string) {
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: createAuthDto.email },
+    });
+
+    if (existingUser) {
+      if (existingUser.deletedAt) {
+        const salt = bcrypt.genSaltSync(10);
+        const hashPassword = bcrypt.hashSync(createAuthDto.password, salt);
+
+        const recoveredUser = await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            password: hashPassword,
+            name: createAuthDto.name,
+            deletedAt: null,
+            status: 'ACTIVE', 
+          },
+          include: { role: true },
+        });
+
+        await this.createAuditLog(recoveredUser.id, 'USER_ACCOUNT_RECOVERED', ip);
+        const payload = { sub: recoveredUser.id, email: recoveredUser.email, role: recoveredUser.role?.name };
+        const token = await this.jwtService.signAsync(payload);
+
+        return { message: 'Account recovered successfully', access_token: token, user: { id: recoveredUser.id, email: recoveredUser.email, role: recoveredUser.role?.name } };
+      } else {
+        throw new Error("Email already in use");
+      }
+    }
+
+    let userRole = await this.prisma.role.findUnique({
+      where: { name: 'USER' },
+    });
+
+    if (!userRole) {
+      userRole = await this.prisma.role.create({
+        data: {
+          name: 'user',
+        },
+      });
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const hashPassword = bcrypt.hashSync(createAuthDto.password, salt);
+    const result = await this.prisma.user.create({
+      data: {
+        name: createAuthDto.name,
+        email: createAuthDto.email,
+        password: hashPassword,
+        image: createAuthDto.imageUrl,
+        roleId: userRole.id,
+        status: 'ACTIVE',
+      },
+      include: { role: true },
+    });
+
+    const payload = { sub: result.id, email: result.email, role: result.role?.name };
+    const token = await this.jwtService.signAsync(payload);
+    await this.createAuditLog(result.id, 'USER_REGISTERED', ip);
+    return { message: 'User created successfully', access_token: token, user: { id: result.id, email: result.email, role: result.role?.name } };
   }
 
   async loginUser(email: string, pass: string, currentIp: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
+      include: { role: true },
     });
     if (!user) {
       throw new Error("Unauthorized access");
@@ -93,19 +161,15 @@ export class AuthService {
     }
     const finalUser = await this.validateUserStatusAndRecover(user);
 
-
     if ((user as any).lastLoginIp as any && (user as any).lastLoginIp !== currentIp) {
-
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
       await this.redisClient.set(`otp:${finalUser.id}`, otp, 'EX', 300);
-
+      await this.createAuditLog(user.id, 'OTP_SENT_NEW_IP', currentIp);
       console.log(`\n--- [SECURITY ALERT] ---`);
       console.log(`New Device/IP: ${currentIp}`);
       console.log(`User ID: ${finalUser.id}`);
       console.log(`Verification OTP: ${otp}`);
       console.log(`------------------------\n`);
-
       return {
         message: "New device or IP detected. OTP verification required.",
         requiresOtp: true,
@@ -119,17 +183,19 @@ export class AuthService {
     });
 
     const payload = {
-      sub: user.id, email: user.email, status: finalUser.status
+      sub: user.id, email: user.email, status: finalUser.status, role: user.role?.name
     };
     const token = await this.jwtService.signAsync(payload);
 
     await this.redisClient.set(`session:${finalUser.id}`, token);
-
-    return { message: "Login successful", access_token: token, user: { id: user.id, email: user.email, status: finalUser.status } };
+    await this.createAuditLog(user.id, 'USER_LOGIN_SUCCESS', currentIp);
+    return { message: "Login successful", access_token: token, user: { id: user.id, email: user.email, status: finalUser.status, role: user.role?.name } };
   }
 
   async findAllUsers() {
-    return this.prisma.user.findMany();
+    return this.prisma.user.findMany({
+      include: { role: true },
+    });
   }
 
   async findOneUsers(id: string) {
@@ -150,13 +216,47 @@ export class AuthService {
     });
   }
 
-  async deletUser(id: string) {
-    return this.prisma.user.update({
-      where: { id },
+  async deletUser(userId: string, ip: string) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
       data: {
         deletedAt: new Date(),
         status: 'DORMANT',
       },
+    });
+
+    await this.createAuditLog(userId, `USER_SOFT_DELETED_ID_${userId}`, ip);
+
+    return {
+      message: "User successfully deactivated (Soft Delete)",
+      user,
+    };
+  }
+
+  async deleteUserByAdmin(targetUserId: string, adminId: string, ip: string) {
+    const user = await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: {
+        deletedAt: new Date(),
+        status: 'DORMANT',
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: adminId,
+        action: `ADMIN_DELETED_USER_ID_${targetUserId}`,
+        ip: ip,
+      },
+    });
+
+    return { message: "User soft-deleted by admin successfully", user };
+  }
+
+  async getAuditLog() {
+    return await this.prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: true },
     });
   }
 }
