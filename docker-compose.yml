@@ -1,0 +1,51 @@
+services:
+  # Database
+  db:
+    image: postgres:15-alpine
+    container_name: gurdia_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: mashud1215
+      POSTGRES_DB: gurdia_auth
+    ports:
+      - "5432:5432"
+
+  # Redis for Sessions/OTP
+  redis:
+    image: redis:alpine
+    container_name: gurdia_redis
+    ports:
+      - "6379:6379"
+
+  # NestJS App
+  app:
+    build: .
+    network_mode: "host"
+    container_name: gurdia_app
+    environment:
+      DATABASE_URL: "postgresql://user:mashud1215@db:5432/gurdia_auth"
+      REDIS_HOST: redis
+      JWT_SECRET: your_secret_key
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "3000:3000"
+
+  # Kong Gateway
+  kong:
+    image: kong:latest
+    container_name: gurdia_kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
+      KONG_ADMIN_GUI_LISTEN: "0.0.0.0:8002"
+      KONG_ADMIN_GUI_URL: "http://localhost:8002"
+      KONG_DECLARATIVE_CONFIG: /opt/kong/kong.yml
+    volumes:
+      - ./kong.yml:/opt/kong/kong.yml
+    ports:
+      - "8000:8000" # Proxy
+      - "8001:8001" # Admin API
+      - "8002:8002"
