@@ -1,0 +1,15 @@
+_format_version: "1.1"
+
+services:
+  - name: gurdia-auth-service
+    url: http://app:3001
+    routes:
+      - name: auth-route
+        paths:
+          - /
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 5
+          hour: 1000
+          policy: local
