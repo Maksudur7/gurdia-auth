@@ -6,7 +6,7 @@ import { Redis } from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAuthDto } from './dto/create-auth.dto.js';
 import { UpdateAuthDto } from './dto/update-auth.dto.js';
-import { sendOtpEmail } from 'src/common/mail.service.js';
+import { sendOtpEmail } from '../common/mail.service.js';
 
 @Injectable()
 export class AuthService {
@@ -199,17 +199,23 @@ export class AuthService {
     }
     const finalUser = await this.validateUserStatusAndRecover(user);
 
-    if ((user as any).lastLoginIp && (user as any).lastLoginIp !== currentIp) {
+    const isNewIp = !(user as any).lastLoginIp || (user as any).lastLoginIp !== currentIp;
+
+    if (isNewIp) {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       await this.redisClient.set(`otp:${finalUser.id}`, otp, 'EX', 300);
-      await this.createAuditLog(user.id, 'OTP_SENT_NEW_IP', currentIp);
-      try{
+
+      console.log(">>>> GENERATED OTP:", otp);
+
+      try {
         await sendOtpEmail(user.email, otp);
-      }catch(err){
-        console.error("Mail service error", err)
+        console.log("Email sent successfully to:", user.email);
+      } catch (err) {
+        console.error("Mail service error details:", err);
       }
+
       return {
-        message: 'New device or IP detected. OTP verification required.',
+        message: 'OTP verification required.',
         requiresOtp: true,
         userId: finalUser.id,
       };
@@ -255,43 +261,43 @@ export class AuthService {
   }
 
   async updateOneUsers(id: string, updateAuthDto: UpdateAuthDto) {
-  console.log('Target ID:', id);
+    console.log('Target ID:', id);
 
-  const user = await this.prisma.user.findUnique({ where: { id } });
-  if (!user) {
-    throw new Error(`User with ID ${id} not found`);
-  }
-
-  if (updateAuthDto.password) {
-    const salt = await bcrypt.genSalt(10);
-    updateAuthDto.password = await bcrypt.hash(updateAuthDto.password, salt);
-  }
-
-  const updateData: any = {
-    name: updateAuthDto.name,
-    email: updateAuthDto.email,
-    password: updateAuthDto.password,
-    image: updateAuthDto.imageUrl,
-  };
-
-  if (updateAuthDto.role) {
-    const roleRecord = await this.prisma.role.findUnique({
-      where: { name: updateAuthDto.role as string },
-    });
-
-    if (roleRecord) {
-      updateData.roleId = roleRecord.id;
-    } else {
-      throw new Error(`Role ${updateAuthDto.role} not found in database`);
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new Error(`User with ID ${id} not found`);
     }
-  }
 
-  return this.prisma.user.update({
-    where: { id },
-    data: updateData,
-    include: { role: true },
-  });
-}
+    if (updateAuthDto.password) {
+      const salt = await bcrypt.genSalt(10);
+      updateAuthDto.password = await bcrypt.hash(updateAuthDto.password, salt);
+    }
+
+    const updateData: any = {
+      name: updateAuthDto.name,
+      email: updateAuthDto.email,
+      password: updateAuthDto.password,
+      image: updateAuthDto.imageUrl,
+    };
+
+    if (updateAuthDto.role) {
+      const roleRecord = await this.prisma.role.findUnique({
+        where: { name: updateAuthDto.role as string },
+      });
+
+      if (roleRecord) {
+        updateData.roleId = roleRecord.id;
+      } else {
+        throw new Error(`Role ${updateAuthDto.role} not found in database`);
+      }
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: updateData,
+      include: { role: true },
+    });
+  }
 
   async deletUser(userId: string, ip: string) {
     const user = await this.prisma.user.update({
