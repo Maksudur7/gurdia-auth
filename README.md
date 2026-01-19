@@ -63,7 +63,7 @@ The system ensures security through a custom interceptor/guard layer:
 ## How to Run
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/Maksudur7/gurdia-auth.git
     ```
 2.  **Configure Environment:** Create a `.env` file based on `.env.example`.
 3.  **Start with Docker:**
